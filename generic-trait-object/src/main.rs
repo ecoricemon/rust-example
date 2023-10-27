@@ -77,7 +77,6 @@ struct Handler {
     v: Vec<Box<dyn Any>>, // Anonymous Vec
 }
 
-/// Implementation of generic piece of `Target`.
 /// This is the third and final call on call stack.
 impl Generic for Handler {
     fn generic_writes<E: Element>(&mut self, _fn_table: Option<&FnTable>, input: &mut E) {
