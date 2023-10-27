@@ -1,0 +1,6 @@
+[package]
+name = "generic-trait-object"
+version = "0.1.0"
+edition = "2021"
+repository = "https://github.com/ecoricemon/rust-patterns"
+license = "Apache-2.0 OR MIT"
