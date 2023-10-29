@@ -34,6 +34,7 @@ trait Element: 'static + Debug {}
 trait Generic {
     fn generic_writes<E: Element>(&mut self, param: &mut E);
     fn generic_reads<E: Element>(&mut self, param: &mut E);
+    fn foo(&self) -> &'static str;
 }
 
 /// Generic erased.
@@ -41,6 +42,7 @@ trait Generic {
 trait ErasedGeneric {
     fn erased_writes(&mut self, param: &mut dyn Any);
     fn erased_reads(&mut self, param: &mut dyn Any);
+    fn erased_foo(&self) -> &'static str;
 }
 
 /// This is a literally function table.
@@ -67,6 +69,11 @@ impl Generic for dyn ErasedGeneric {
     #[inline]
     fn generic_reads<E: Element>(&mut self, param: &mut E) {
         self.erased_reads(param as &mut dyn Any);
+    }
+    
+    #[inline]
+    fn foo(&self) -> &'static str {
+        self.erased_foo()
     }
 }
 
@@ -99,6 +106,12 @@ impl ErasedGeneric for Handler {
         (delegator)(self, param);
         self.fn_table_reads = Some(fn_table);
     }
+    
+    #[inline]
+    fn erased_foo(&self) -> &'static str {
+        // Doesn't require `FnTable`.
+        self.foo()
+    }
 }
 
 /// Real implementations for the trait `Generic`.
@@ -123,6 +136,10 @@ impl Generic for Handler {
         }
 
         println!("generic_reads() got an object of {:?}", TypeId::of::<E>());
+    }
+    
+    fn foo(&self) -> &'static str {
+        "Handler::foo()"
     }
 }
 
@@ -186,4 +203,7 @@ fn main() {
 
     println!("Type A's id: {:?}", TypeId::of::<A>());
     println!("Type B's id: {:?}", TypeId::of::<B>());
+    
+    // Calls non-generic method.
+    println!("{}", trait_object.foo());
 }
