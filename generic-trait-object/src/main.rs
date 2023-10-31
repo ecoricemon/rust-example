@@ -45,16 +45,9 @@ trait ErasedGeneric {
     fn erased_foo(&self) -> &'static str;
 }
 
-/// This is a literally function table.
-/// We can call a specific funtion using `TypeId` from the `dyn Any`.
-/// Each function in this table calls the real generic method.
-type FnTable = HashMap<TypeId, Box<dyn Fn(&mut Handler, &mut dyn Any)>>;
-
 /// An implementation of `Generic` and `ErasedGeneric`.
 struct Handler {
-    // Tables will be taken in `impl ErasedGeneric` so that they are type of `Option`.
-    fn_table_writes: Option<FnTable>,
-    fn_table_reads: Option<FnTable>,
+    fn_table: HandlerFnTable,
     v: Vec<Box<dyn Any>>, // Anonymous Vec
 }
 
@@ -70,7 +63,7 @@ impl Generic for dyn ErasedGeneric {
     fn generic_reads<E: Element>(&mut self, param: &mut E) {
         self.erased_reads(param as &mut dyn Any);
     }
-    
+
     #[inline]
     fn foo(&self) -> &'static str {
         self.erased_foo()
@@ -83,30 +76,32 @@ impl ErasedGeneric for Handler {
     fn erased_writes(&mut self, param: &mut dyn Any) {
         let ty_id = (param as &dyn Any).type_id();
         let fn_table = self
-            .fn_table_writes
+            .fn_table
+            .generic_writes
             .take()
             .expect("fn_table_writes must be filled.");
         let delegator = fn_table
             .get(&ty_id)
             .expect("fn_table_writes doesn't have appropriate entry.");
         (delegator)(self, param);
-        self.fn_table_writes = Some(fn_table); // Gives it back.
+        self.fn_table.generic_writes = Some(fn_table); // Gives it back.
     }
 
     #[inline]
     fn erased_reads(&mut self, param: &mut dyn Any) {
         let ty_id = (param as &dyn Any).type_id();
         let fn_table = self
-            .fn_table_reads
+            .fn_table
+            .generic_reads
             .take()
             .expect("fn_table_reads must be filled.");
         let delegator = fn_table
             .get(&ty_id)
             .expect("fn_table_reads doesn't have appropriate entry.");
         (delegator)(self, param);
-        self.fn_table_reads = Some(fn_table);
+        self.fn_table.generic_reads = Some(fn_table);
     }
-    
+
     #[inline]
     fn erased_foo(&self) -> &'static str {
         // Doesn't require `FnTable`.
@@ -137,22 +132,52 @@ impl Generic for Handler {
 
         println!("generic_reads() got an object of {:?}", TypeId::of::<E>());
     }
-    
+
     fn foo(&self) -> &'static str {
         "Handler::foo()"
     }
 }
 
-/// Helper macro to insert an entry into `FnTable`.
-macro_rules! add_delegator {
-    ($fn_table:ident, $handler:ty, $generic_ty:ty, $generic_fn:ident) => {
-        $fn_table.insert(
-            std::any::TypeId::of::<$generic_ty>(),
-            Box::new(|handler: &mut $handler, value: &mut dyn Any| {
-                handler.$generic_fn(value.downcast_mut::<$generic_ty>().unwrap());
-            }),
-        );
-    };
+/// This is a literally function table.
+/// We can call a specific funtion using `TypeId` from the `dyn Any`.
+/// Each function in this table calls the real generic method.
+type FnTable = HashMap<TypeId, Box<dyn Fn(&mut Handler, &mut dyn Any)>>;
+
+/// `FnTable`s for Handler.
+struct HandlerFnTable {
+    // Tables will be taken in `impl ErasedGeneric` so that they are type of `Option`.
+    generic_writes: Option<FnTable>,
+    generic_reads: Option<FnTable>,
+}
+
+/// Serves integrated builder of `FnTable`s.
+impl HandlerFnTable {
+    fn new() -> Self {
+        Self {
+            generic_writes: Some(FnTable::new()),
+            generic_reads: Some(FnTable::new()),
+        }
+    }
+
+    fn with<T: Element>(mut self) -> Self {
+        if let Some(map) = self.generic_writes.as_mut() {
+            map.insert(
+                TypeId::of::<T>(),
+                Box::new(|handler: &mut Handler, value: &mut dyn Any| {
+                    handler.generic_writes(value.downcast_mut::<T>().unwrap());
+                }),
+            );
+        }
+        if let Some(map) = self.generic_reads.as_mut() {
+            map.insert(
+                TypeId::of::<T>(),
+                Box::new(|handler: &mut Handler, value: &mut dyn Any| {
+                    handler.generic_reads(value.downcast_mut::<T>().unwrap());
+                }),
+            );
+        }
+        self
+    }
 }
 
 /// Test type A
@@ -173,23 +198,14 @@ impl Element for A {}
 impl Element for B {}
 
 fn main() {
-    // `fn_table` has delegators to call the real generic methods.
-    let mut fn_table_writes = FnTable::new();
-    let mut fn_table_reads = FnTable::new();
-    add_delegator!(fn_table_writes, Handler, A, generic_writes);
-    add_delegator!(fn_table_writes, Handler, B, generic_writes);
-    add_delegator!(fn_table_reads, Handler, A, generic_reads);
-    add_delegator!(fn_table_reads, Handler, B, generic_reads);
-
     // Constructs a trait object.
     let handler = Handler {
-        fn_table_writes: Some(fn_table_writes),
-        fn_table_reads: Some(fn_table_reads),
+        fn_table: HandlerFnTable::new().with::<A>().with::<B>(),
         v: Vec::new(),
     };
     let mut trait_object: Box<dyn ErasedGeneric> = Box::new(handler);
 
-    // Writes something.
+    // Writes something in order to test the trait object.
     trait_object.generic_writes(&mut A { _a1: 1, _a2: 2 });
     trait_object.generic_writes(&mut B { _b1: 3 });
 
@@ -198,12 +214,15 @@ fn main() {
     let mut b_read = B { _b1: 0 };
     trait_object.generic_reads(&mut b_read);
     trait_object.generic_reads(&mut a_read);
+
+    // Works as expected?
     assert_eq!(A { _a1: 1, _a2: 2 }, a_read);
     assert_eq!(B { _b1: 3 }, b_read);
 
+    // Take a look at the printed types. They must be same with the types in generic methods.
     println!("Type A's id: {:?}", TypeId::of::<A>());
     println!("Type B's id: {:?}", TypeId::of::<B>());
-    
-    // Calls non-generic method.
+
+    // Non-generic method is also callable on the trait object.
     println!("{}", trait_object.foo());
 }
