@@ -22,7 +22,7 @@
 use core::mem::{swap, zeroed};
 use std::{
     any::{Any, TypeId},
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::Debug,
 };
 
@@ -124,6 +124,11 @@ impl Generic for Handler {
     }
 
     fn generic_reads<E: Element>(&mut self, param: &mut E) {
+        // Same as above.
+        if !self.fn_table.types.contains(&TypeId::of::<E>()) {
+            self.fn_table.add::<E>();
+        }
+
         // Following reading test.
         let mut elem = self.v.pop().expect("There's no elements stacked.");
         if let Some(casted) = elem.downcast_mut::<E>() {
@@ -148,18 +153,34 @@ struct HandlerFnTable {
     // Tables will be taken in `impl ErasedGeneric` so that they are type of `Option`.
     generic_writes: Option<FnTable>,
     generic_reads: Option<FnTable>,
+    
+    // Just used for easy check.
+    types: HashSet<TypeId>,
 }
 
 /// Serves integrated builder of `FnTable`s.
+/// This implementation is one of your options.
+/// You can ignore all about this and add an entry into the `FnTable` whereever you want.
+/// Please take a look at add(), which helps you know how to add an entry.
 impl HandlerFnTable {
+    // Empty tables.
     fn new() -> Self {
         Self {
             generic_writes: Some(FnTable::new()),
             generic_reads: Some(FnTable::new()),
+            types: HashSet::new(),
         }
     }
 
+    // Chain with new().
+    #[allow(dead_code)]
     fn with<T: Element>(mut self) -> Self {
+        self.add::<T>();
+        self
+    }
+    
+    // Inserts new entry.
+    fn add<T: Element>(&mut self) -> &mut Self {
         if let Some(map) = self.generic_writes.as_mut() {
             map.insert(
                 TypeId::of::<T>(),
@@ -176,6 +197,7 @@ impl HandlerFnTable {
                 }),
             );
         }
+        self.types.insert(TypeId::of::<T>());
         self
     }
 }
@@ -199,10 +221,11 @@ impl Element for B {}
 
 fn main() {
     // Constructs a trait object.
-    let handler = Handler {
-        fn_table: HandlerFnTable::new().with::<A>().with::<B>(),
+    let mut handler = Handler {
+        fn_table: HandlerFnTable::new(),
         v: Vec::new(),
     };
+    handler.fn_table.add::<A>().add::<B>();
     let mut trait_object: Box<dyn ErasedGeneric> = Box::new(handler);
 
     // Writes something in order to test the trait object.
