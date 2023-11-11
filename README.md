@@ -18,3 +18,11 @@ When to use
 When to use
 - When you want to manager functions that have different signatures from each other.
 - You need to call them in your code.
+
+## ECS: System and Query
+
+[Source code](ecs-system-query/src/main.rs)
+
+When to use
+- When you want to see how to implement ECS in terms of system and query.
+

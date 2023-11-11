@@ -1,19 +1,20 @@
 use super::query::Query;
-use super::DataStorage;
+use super::ComponentStorage;
 use std::any::TypeId;
 
 pub trait Invokable {
-    fn invoke(&self, storage: &mut DataStorage); // Depends on DataPool for object safety.
+    fn invoke(&self, storage: &mut ComponentStorage); // Depends on DataPool for object safety.
     fn reads(&self) -> Vec<TypeId>; // For parallel execution later.
     fn writes(&self) -> Vec<TypeId>; // For parallel execution later.
 }
 
 impl<T: System> Invokable for T {
     #[inline]
-    fn invoke(&self, storage: &mut DataStorage) {
-        let r = <T::Ref as Query>::query(storage);
-        let m = <T::Mut as Query>::query_mut(storage);
-        self.run(r, m);
+    fn invoke(&self, storage: &mut ComponentStorage) {
+        self.run(
+            <T::Ref as Query>::query(storage, TypeId::of::<T>()),
+            <T::Mut as Query>::query_mut(storage, TypeId::of::<T>()),
+        );
     }
 
     #[inline]
@@ -27,7 +28,7 @@ impl<T: System> Invokable for T {
     }
 }
 
-pub trait System {
+pub trait System: 'static {
     type Ref: for<'a> Query<'a>;
     type Mut: for<'a> Query<'a>;
 

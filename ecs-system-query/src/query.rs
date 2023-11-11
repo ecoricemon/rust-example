@@ -1,6 +1,15 @@
+use super::util::{downcast_slice, downcast_mut_slice};
 use super::{Component, Store};
-use std::any::TypeId;
+use std::slice::{Iter, IterMut};
+use std::{any::TypeId, marker::PhantomData};
+use std::ptr::NonNull;
 
+/// A filter to select slices of `Component`.
+/// Users should fill this form of filter.
+/// `Target` is what `Component` you want. You will receive slices of this `Target`.
+/// `FilterAll` is a tuple of `Component`s to choose entities that have all these `Component`s.
+/// `FilterAny` is a tuple of `Component`s to choose entities that have any of these `Component`s.
+/// `FilterNone` is a tuple of `Component`s not to choose entities that have any of these `Component`s.
 pub trait Filter: 'static {
     type Target: Component;
     type FilterAll: Identify;
@@ -38,6 +47,7 @@ pub trait Filter: 'static {
     }
 }
 
+/// A trait to get `TypeId`s of elements inside a tuple.
 pub trait Identify {
     type Output;
 
@@ -45,59 +55,69 @@ pub trait Identify {
     fn as_slice(ids: &Self::Output) -> &[TypeId];
 }
 
-impl Identify for () {
-    type Output = [TypeId; 0];
-
-    #[inline]
-    fn ids() -> Self::Output {
-        []
-    }
-
-    #[inline]
-    fn as_slice(ids: &Self::Output) -> &[TypeId] {
-        ids
-    }
-}
-
-impl<A: Component, B: Component> Identify for (A, B) {
-    type Output = [TypeId; 2];
-
-    #[inline]
-    fn ids() -> Self::Output {
-        [TypeId::of::<A>(), TypeId::of::<B>()] // Can't be used in const fn so far.
-    }
-
-    #[inline]
-    fn as_slice(ids: &Self::Output) -> &[TypeId] {
-        ids
-    }
-}
-
 pub trait Query<'a> {
     type Output;
     type OutputMut;
 
-    fn query(storage: &mut impl Store) -> <Self as Query<'a>>::Output;
-    fn query_mut(storage: &mut impl Store) -> <Self as Query<'a>>::OutputMut;
+    fn query(storage: &mut impl Store, s_id: TypeId) -> Self::Output;
+    fn query_mut(storage: &mut impl Store, s_id: TypeId) -> Self::OutputMut;
     fn ids() -> Vec<TypeId>;
 }
 
-impl<'a, A: Filter, B: Filter> Query<'a> for (A, B) {
-    type Output = (Vec<&'a [A::Target]>, Vec<&'a [B::Target]>);
-    type OutputMut = (Vec<&'a mut [A::Target]>, Vec<&'a mut [B::Target]>);
+pub struct QueryMutTypeIdSalt;
 
-    #[inline]
-    fn query(storage: &mut impl Store) -> <Self as Query<'a>>::Output {
-        (storage.get::<A>(), storage.get::<B>())
+pub struct QueryIter<'a, T> {
+    iter: Iter<'a, NonNull<[()]>>,
+    _marker: PhantomData<T>,
+}
+
+impl<'a, T> QueryIter<'a, T> {
+    /// # Safety
+    /// 
+    /// Borrow check breaks here.
+    /// Caller should guarantee that `v` is invariant during its usage.
+    /// Plus, generic parameter `T` should match with the original type of the `v`.
+    pub unsafe fn new(v: &Vec<NonNull<[()]>>) -> Self {
+        Self {
+            iter: (*(v as *const Vec<NonNull<[()]>>)).iter(),
+            _marker: PhantomData,
+        }
     }
+}
 
-    #[inline]
-    fn query_mut(storage: &mut impl Store) -> Self::OutputMut {
-        (storage.get_mut::<A>(), storage.get_mut::<B>())
+impl<'a, T: 'a> Iterator for QueryIter<'a, T> {
+    type Item = &'a [T];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter
+            .next()
+            .map(|ptr| 
+                // Safety: Downcasting will be guaranteed by the caller(See comment at the constructor).
+                unsafe { downcast_slice(ptr.as_ptr()) }
+            )
     }
+}
 
-    #[inline]
-    fn ids() -> Vec<TypeId> {
-        vec![TypeId::of::<A::Target>(), TypeId::of::<B::Target>()]
+pub struct QueryIterMut<'a, T> {
+    iter: IterMut<'a, NonNull<[()]>>,
+    _marker: PhantomData<T>,
+}
+
+impl<'a, T> QueryIterMut<'a, T> {
+    pub unsafe fn new(v: &mut Vec<NonNull<[()]>>) -> Self {
+        Self {
+            iter: (*(v as *mut Vec<NonNull<[()]>>)).iter_mut(),
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<'a, T: 'a> Iterator for QueryIterMut<'a, T> {
+    type Item = &'a mut [T];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter
+            .next()
+            .map(|ptr| unsafe { downcast_mut_slice(ptr.as_ptr()) })
     }
 }
