@@ -1,0 +1,34 @@
+[package]
+name = "basic"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = "z"
+lto = true
+
+[dependencies.wasm-bindgen]
+version = "0.2.89"
+
+[dependencies.js-sys]
+version = "0.3.66"
+
+[dependencies.web-sys]
+version = "0.3.66"
+features = [
+    "console",
+    "Window",
+    "Navigator",
+    "Worker",
+    "MessageEvent",
+    "Event",
+    "DedicatedWorkerGlobalScope",
+    "Document",
+    "Element",
+]
+
+[dependencies.wasm-worker]
+path = "../../"

@@ -1,0 +1,40 @@
+[package]
+name = "wasm-worker"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["rlib"]
+
+[profile.release]
+opt-level = "z"
+lto = true
+
+[dependencies.wasm-bindgen]
+version = "0.2.89"
+
+[dependencies.js-sys]
+version = "0.3.66"
+
+[dependencies.web-sys]
+version = "0.3.66"
+features = [
+    "console",
+    "Window",
+    "Navigator",
+    "Worker",
+    "MessageEvent",
+    "Event",
+    "DedicatedWorkerGlobalScope",
+    "Document",
+    "Element",
+]
+
+[dependencies.console_error_panic_hook]
+version = "0.1.7"
+
+# Just let rust-analyzer know, so that it will look for examples and show us something like inlay hints.
+[[example]]
+name = "basic"
+path = "examples/basic/src/lib.rs"
+crate-type = ["cdylib"]

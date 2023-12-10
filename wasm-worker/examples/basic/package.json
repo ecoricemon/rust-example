@@ -1,0 +1,28 @@
+{
+  "author": "ecoricemon",
+  "name": "basic",
+  "version": "0.1.0",
+  "scripts": {
+    "wasm-mt-common": "cross-env RUSTFLAGS=\"-C target-feature=+atomics,+bulk-memory,+mutable-globals\" rustup run nightly-2023-12-07 wasm-pack build . --target web --out-name wasm-index --out-dir pkg_mt",
+    "wasm-mt": "npm run wasm-mt-common -- --dev -- -Z build-std=panic_abort,std",
+    "wasm-mt-release": "npm run wasm-mt-common -- --release -- -Z build-std=panic_abort,std",
+    "bundle-mt": "npm run wasm-mt && webpack --config webpack.dev.js",
+    "bundle-mt-release": "npm run wasm-mt-release && webpack --config webpack.prod.js",
+    "clean": "rimraf --glob dist **/pkg",
+    "clean-all": "rimraf --glob dist **/pkg target node_modules",
+    "build": "run-s clean bundle-mt",
+    "build-release": "run-s clean bundle-mt-release",
+    "start": "webpack serve --config webpack.dev.js --no-client-overlay-warnings"
+  },
+  "devDependencies": {
+    "copy-webpack-plugin": "^11.0.0",
+    "cross-env": "^7.0.3",
+    "npm-run-all": "^4.1.5",
+    "rimraf": "^5.0.1",
+    "wasm-pack": "^0.12.1",
+    "webpack": "^5.88.2",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^4.15.1",
+    "webpack-merge": "^5.9.0"
+  }
+}

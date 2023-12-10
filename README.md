@@ -26,3 +26,10 @@ When to use
 When to use
 - When you want to see how to implement ECS in terms of system and query.
 
+
+## WASM web worker with Webpack
+
+[Source code](wasm-worker/src/lib.rs)
+
+When to use
+- When you want to use web worker and bundle your JS and wasm with Webpack.
