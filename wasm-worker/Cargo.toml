@@ -10,28 +10,27 @@ crate-type = ["rlib"]
 opt-level = "z"
 lto = true
 
-[dependencies.wasm-bindgen]
-version = "0.2.89"
-
-[dependencies.js-sys]
-version = "0.3.66"
-
-[dependencies.web-sys]
-version = "0.3.66"
-features = [
+[dependencies]
+wasm-bindgen = { version = "0.2.89" }
+js-sys = { version = "0.3.66" }
+web-sys = { version = "0.3.66", features = [
     "console",
     "Window",
     "Navigator",
     "Worker",
+    "WorkerOptions",
+    "WorkerType",
+    "Blob",
+    "BlobPropertyBag",
+    "Url",
     "MessageEvent",
     "Event",
     "DedicatedWorkerGlobalScope",
     "Document",
     "Element",
-]
-
-[dependencies.console_error_panic_hook]
-version = "0.1.7"
+] }
+once_cell = { version = "1.19.0" }
+console_error_panic_hook = { version = "0.1.7" }
 
 # Just let rust-analyzer know, so that it will look for examples and show us something like inlay hints.
 [[example]]
