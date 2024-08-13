@@ -1,6 +1,15 @@
 # rust-patterns
 Rust patterns
 
+## Trait impl detect
+
+[Source code](impl-detect/src/main.rs)
+
+Detects whether T implements some traits
+
+When to use
+- Want to know if a type implements some traits at run-time.
+
 ## Generic trait object
 
 [Source code](generic-trait-object/src/main.rs)
