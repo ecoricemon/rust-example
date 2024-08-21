@@ -15,13 +15,14 @@
 /// See https://doc.rust-lang.org/reference/expressions/method-call-expr.html
 /// (Document describes about methods, but I believe the same rule is applied
 /// to associated functions as well)
+/// 
+/// Here, more specific rules are written.
+/// 1. https://rust-lang.github.io/rfcs/0195-associated-items.html#via-an-id_segment-prefix
+/// 2. https://rust-lang.github.io/rfcs/0195-associated-items.html#via-a-type_segment-prefix
+/// (1) tells starting with ID_SEGEMENT is equivalent to starting with TYPE_SEGMENT.
+///  - 'A::b' is equivalent to '<A>::b'
+/// (2) tells inherent members are priortized over in-scope traits.
 pub struct ImplDetector<T>(std::marker::PhantomData<T>);
-
-// NOTE: With associated functions, I tested associated constants as well.
-// Although I couldn't find specification about associated constant search order,
-// it works at rustc 1.80.0.
-// If you'd like to do something like compile-time validation,
-// constants can help you.
 
 // === ImplDetector for `Clone` ===
 
@@ -81,64 +82,94 @@ impl<T> ImplDetector<(T, T)> {
 
 #[allow(dead_code)]
 fn main() {
-    // === Detects `Clone` ===
+
     #[derive(Clone)]
     struct Cloneable;
-    assert!(ImplDetector::<Cloneable>::is_clone());
-
     struct UnCloneable;
-    assert!(!ImplDetector::<UnCloneable>::is_clone());
-
-    // Compile-time validation.
-    const _: () = {
-        assert!(ImplDetector::<Cloneable>::IS_CLONE);
-        assert!(!ImplDetector::<UnCloneable>::IS_CLONE);
-    };
-
-    // === Detects `Send` and `Sync` ===
-
-    // i32 is both Send and Sync.
-    struct SendSync(i32); 
-    assert!(ImplDetector::<SendSync>::is_send());
-    assert!(ImplDetector::<SendSync>::is_sync());
-
-    // MutexGuard is Sync, but not Send.
-    struct SyncNotSend(std::sync::MutexGuard<'static, i32>); 
-    assert!(!ImplDetector::<SyncNotSend>::is_send());
-    assert!(ImplDetector::<SyncNotSend>::is_sync());
-
-    // Cell is Send, but not Sync.
-    struct SendNotSync(std::cell::Cell<i32>); 
-    assert!(ImplDetector::<SendNotSync>::is_send());
-    assert!(!ImplDetector::<SendNotSync>::is_sync());
-
-    // Raw pointer is neither Send nor Sync.
-    struct NotSendNotSync(*mut i32); 
-    assert!(!ImplDetector::<NotSendNotSync>::is_send());
-    assert!(!ImplDetector::<NotSendNotSync>::is_sync());
-
-    // Compile-time validation.
-    const _: () = {
-        assert!(ImplDetector::<SendSync>::IS_SEND);
-        assert!(ImplDetector::<SendSync>::IS_SYNC);
-        assert!(!ImplDetector::<SyncNotSend>::IS_SEND);
-        assert!(ImplDetector::<SyncNotSend>::IS_SYNC);
-        assert!(ImplDetector::<SendNotSync>::IS_SEND);
-        assert!(!ImplDetector::<SendNotSync>::IS_SYNC);
-        assert!(!ImplDetector::<NotSendNotSync>::IS_SEND);
-        assert!(!ImplDetector::<NotSendNotSync>::IS_SYNC);
-    };
-
-    // === Detects `EqualType` ===
+    struct SendSync(i32); // i32 is both Send and Sync.
+    struct SyncNotSend(std::sync::MutexGuard<'static, i32>); // MutexGuard is Sync, but not Send.
+    struct SendNotSync(std::cell::Cell<i32>); // Cell is Send, but not Sync.
+    struct NotSendNotSync(*mut i32); // Raw pointer is neither Send nor Sync.
     struct A;
     struct B;
 
-    assert!(ImplDetector::<(A, A)>::is_equal_type());
-    assert!(!ImplDetector::<(A, B)>::is_equal_type());
+    // Using syntax begining with ID, 'ID::...'
+    {
+        // === Detects `Clone` ===
+        assert!(ImplDetector::<Cloneable>::is_clone());
+        assert!(!ImplDetector::<UnCloneable>::is_clone());
+        assert!(!ImplDetector::<UnCloneable>::is_clone());
+        const _: () = {
+            assert!(ImplDetector::<Cloneable>::IS_CLONE);
+            assert!(!ImplDetector::<UnCloneable>::IS_CLONE);
+        };
 
-    // Compile-time validation.
-    const _: () = {
-        assert!(ImplDetector::<(A, A)>::IS_EQUAL_TYPE);
-        assert!(!ImplDetector::<(A, B)>::IS_EQUAL_TYPE);
-    };
+        // === Detects `Send` and `Sync` ===
+        assert!(ImplDetector::<SendSync>::is_send());
+        assert!(ImplDetector::<SendSync>::is_sync());
+        assert!(!ImplDetector::<SyncNotSend>::is_send());
+        assert!(ImplDetector::<SyncNotSend>::is_sync());
+        assert!(ImplDetector::<SendNotSync>::is_send());
+        assert!(!ImplDetector::<SendNotSync>::is_sync());
+        assert!(!ImplDetector::<NotSendNotSync>::is_send());
+        assert!(!ImplDetector::<NotSendNotSync>::is_sync());
+        const _: () = {
+            assert!(ImplDetector::<SendSync>::IS_SEND);
+            assert!(ImplDetector::<SendSync>::IS_SYNC);
+            assert!(!ImplDetector::<SyncNotSend>::IS_SEND);
+            assert!(ImplDetector::<SyncNotSend>::IS_SYNC);
+            assert!(ImplDetector::<SendNotSync>::IS_SEND);
+            assert!(!ImplDetector::<SendNotSync>::IS_SYNC);
+            assert!(!ImplDetector::<NotSendNotSync>::IS_SEND);
+            assert!(!ImplDetector::<NotSendNotSync>::IS_SYNC);
+        };
+
+        // === Detects `EqualType` ===
+        assert!(ImplDetector::<(A, A)>::is_equal_type());
+        assert!(!ImplDetector::<(A, B)>::is_equal_type());
+        const _: () = {
+            assert!(ImplDetector::<(A, A)>::IS_EQUAL_TYPE);
+            assert!(!ImplDetector::<(A, B)>::IS_EQUAL_TYPE);
+        };
+    }
+
+    // Using syntax begining with Type, '<Type>::...'
+    {
+        // === Detects `Clone` ===
+        assert!(<ImplDetector::<Cloneable>>::is_clone());
+        assert!(!<ImplDetector::<UnCloneable>>::is_clone());
+        assert!(!<ImplDetector::<UnCloneable>>::is_clone());
+        const _: () = {
+            assert!(<ImplDetector::<Cloneable>>::IS_CLONE);
+            assert!(!<ImplDetector::<UnCloneable>>::IS_CLONE);
+        };
+
+        // === Detects `Send` and `Sync` ===
+        assert!(<ImplDetector::<SendSync>>::is_send());
+        assert!(<ImplDetector::<SendSync>>::is_sync());
+        assert!(!<ImplDetector::<SyncNotSend>>::is_send());
+        assert!(<ImplDetector::<SyncNotSend>>::is_sync());
+        assert!(<ImplDetector::<SendNotSync>>::is_send());
+        assert!(!<ImplDetector::<SendNotSync>>::is_sync());
+        assert!(!<ImplDetector::<NotSendNotSync>>::is_send());
+        assert!(!<ImplDetector::<NotSendNotSync>>::is_sync());
+        const _: () = {
+            assert!(<ImplDetector::<SendSync>>::IS_SEND);
+            assert!(<ImplDetector::<SendSync>>::IS_SYNC);
+            assert!(!<ImplDetector::<SyncNotSend>>::IS_SEND);
+            assert!(<ImplDetector::<SyncNotSend>>::IS_SYNC);
+            assert!(<ImplDetector::<SendNotSync>>::IS_SEND);
+            assert!(!<ImplDetector::<SendNotSync>>::IS_SYNC);
+            assert!(!<ImplDetector::<NotSendNotSync>>::IS_SEND);
+            assert!(!<ImplDetector::<NotSendNotSync>>::IS_SYNC);
+        };
+
+        // === Detects `EqualType` ===
+        assert!(<ImplDetector::<(A, A)>>::is_equal_type());
+        assert!(!<ImplDetector::<(A, B)>>::is_equal_type());
+        const _: () = {
+            assert!(<ImplDetector::<(A, A)>>::IS_EQUAL_TYPE);
+            assert!(!<ImplDetector::<(A, B)>>::IS_EQUAL_TYPE);
+        };
+    }
 }
