@@ -10,6 +10,15 @@ Detects whether T implements some traits
 When to use
 - Want to know if a type implements some traits at run-time.
 
+## Self referential type
+
+[Source code](self-referential/README.md)
+
+A workaround for self referential types
+
+When to use
+- If you need to deal with something like `&'a Type<'a>`.
+
 ## Generic trait object
 
 [Source code](generic-trait-object/src/main.rs)
