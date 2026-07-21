@@ -2,18 +2,17 @@
 //!
 //! ## Situation
 //!
-//! - Want to make a trait obejct from a trait having some generic methods.
-//! - Generic methods require 'static lifetime such as `foo<T: 'static>()`.
+//! - We want to create a trait object from a trait that has generic methods.
+//! - The generic methods require a `'static` lifetime, as in `foo<T: 'static>()`.
 //!
-//! ## Pattern abstration
+//! ## Pattern abstraction
 //!
-//! In Rust, only object safe traits can become trait objects, generic methods make them not object safe.
-//! To overcome this limitation, we can use `dyn Any` as parameters to take generic arguments
-//! from non-generic methods, and call the generic methods in them.
-//! We can inspect `TypeId`s from the 'dyn Ayn's, but we can't know concrete types from the 'TypeId's.
-//! So we're going to inject functions calling generic methods with the concrete types,
-//! and invoke those functions according to the `TypeId`s.
-//! It's unsafe, extremely verbose and inefficient but I couldn't come up with any other solutions.
+//! In Rust, only object-safe traits can become trait objects, and generic methods are not object-safe.
+//! To overcome this limitation, non-generic methods can accept `dyn Any` parameters and then call
+//! the generic methods. We can inspect the `TypeId` of a `dyn Any`, but a `TypeId` does not reveal
+//! its concrete type. We therefore inject functions that call the generic methods with concrete
+//! types, then invoke the appropriate function for each `TypeId`.
+//! This approach is unsafe, extremely verbose, and inefficient, but it demonstrates one solution.
 //!
 //! ## Reference
 //!
@@ -27,7 +26,7 @@ use std::{
 };
 
 /// Trait bounds for the generic methods.
-/// 'static must be included to use `dyn Any`.
+/// The `'static` bound is required to use `dyn Any`.
 trait Element: 'static + Debug {}
 
 /// Our target.
@@ -37,8 +36,7 @@ trait Generic {
     fn foo(&self) -> &'static str;
 }
 
-/// Generic erased.
-/// We're going to make a trait object based on this.
+/// The type-erased counterpart of `Generic`, used to create a trait object.
 trait ErasedGeneric {
     fn erased_writes(&mut self, param: &mut dyn Any);
     fn erased_reads(&mut self, param: &mut dyn Any);
@@ -51,8 +49,8 @@ struct Handler {
     v: Vec<Box<dyn Any>>, // Anonymous Vec
 }
 
-/// impl for exposure of generic methods from trait object.
-/// This is the first call on call stack.
+/// Exposes generic methods through a trait object.
+/// This is the first call on the call stack.
 impl Generic for dyn ErasedGeneric {
     #[inline]
     fn generic_writes<E: Element>(&mut self, param: &mut E) {
@@ -70,7 +68,7 @@ impl Generic for dyn ErasedGeneric {
     }
 }
 
-/// This is the second call on call stack.
+/// This is the second call on the call stack.
 impl ErasedGeneric for Handler {
     #[inline]
     fn erased_writes(&mut self, param: &mut dyn Any) {
@@ -110,7 +108,7 @@ impl ErasedGeneric for Handler {
 }
 
 /// Real implementations for the trait `Generic`.
-/// This is the third and final call on call stack.
+/// This is the third and final call on the call stack.
 impl Generic for Handler {
     fn generic_writes<E: Element>(&mut self, param: &mut E) {
         // Simple and unsafe writing test.
@@ -130,7 +128,7 @@ impl Generic for Handler {
         }
 
         // Following reading test.
-        let mut elem = self.v.pop().expect("There's no elements stacked.");
+        let mut elem = self.v.pop().expect("There are no elements on the stack.");
         if let Some(casted) = elem.downcast_mut::<E>() {
             swap(casted, param);
         }
@@ -143,25 +141,24 @@ impl Generic for Handler {
     }
 }
 
-/// This is a literally function table.
-/// We can call a specific funtion using `TypeId` from the `dyn Any`.
+/// This is a literal function table.
+/// We can call a specific function using the `TypeId` of a `dyn Any`.
 /// Each function in this table calls the real generic method.
 type FnTable = HashMap<TypeId, Box<dyn Fn(&mut Handler, &mut dyn Any)>>;
 
 /// `FnTable`s for Handler.
 struct HandlerFnTable {
-    // Tables will be taken in `impl ErasedGeneric` so that they are type of `Option`.
+    // The tables are temporarily taken by `impl ErasedGeneric`, so they are stored as `Option`s.
     generic_writes: Option<FnTable>,
     generic_reads: Option<FnTable>,
-    
-    // Just used for easy check.
+
+    // Used only for quick membership checks.
     types: HashSet<TypeId>,
 }
 
-/// Serves integrated builder of `FnTable`s.
-/// This implementation is one of your options.
-/// You can ignore all about this and add an entry into the `FnTable` whereever you want.
-/// Please take a look at add(), which helps you know how to add an entry.
+/// Provides an integrated builder for `FnTable`s.
+/// This implementation is only one possible approach. You can ignore the builder and add
+/// entries to an `FnTable` wherever appropriate. See `add()` for an example.
 impl HandlerFnTable {
     // Empty tables.
     fn new() -> Self {
@@ -172,13 +169,13 @@ impl HandlerFnTable {
         }
     }
 
-    // Chain with new().
+    // Allows entries to be chained after `new()`.
     #[allow(dead_code)]
     fn with<T: Element>(mut self) -> Self {
         self.add::<T>();
         self
     }
-    
+
     // Inserts new entry.
     fn add<T: Element>(&mut self) -> &mut Self {
         if let Some(map) = self.generic_writes.as_mut() {
@@ -242,7 +239,7 @@ fn main() {
     assert_eq!(A { _a1: 1, _a2: 2 }, a_read);
     assert_eq!(B { _b1: 3 }, b_read);
 
-    // Take a look at the printed types. They must be same with the types in generic methods.
+    // The printed types should match the types used in the generic methods.
     println!("Type A's id: {:?}", TypeId::of::<A>());
     println!("Type B's id: {:?}", TypeId::of::<B>());
 

@@ -1,37 +1,38 @@
-//! ECS(Entity Component and System) is a pattern to optimize cache hit.
-//! In this example, we're going to focus on how to implement it in terms of *System*.
-//! Users can request various types of `Component`s with read and write authorities.
-//! So that ECS patter should handle heterogenious types.
-//! We can use Rust's associated type to solve this problem.
-//! Associated type is an easy approach to show what types are passing to the *System*.
+//! ECS (Entity Component System) is a pattern that can improve cache locality.
+//! This example focuses on implementing the *System* portion of an ECS.
+//! Users can request read or write access to various `Component` types, so the ECS
+//! must handle heterogeneous types. Rust's associated types provide a straightforward
+//! way to express which types are passed to each *System*.
 
 mod query;
 mod storage;
 mod system;
 mod util;
 use query::*;
+use std::any::TypeId;
 use storage::*;
 use system::*;
 use util::*;
-use std::any::TypeId;
 
-// impl of query::Identify for various tuples.
+// Implement `query::Identify` for tuples of various sizes.
 impl_identify!(0);
-impl_identify!(1,A);
-impl_identify!(2,A,B);
-impl_identify!(3,A,B,C);
+impl_identify!(1, A);
+impl_identify!(2, A, B);
+impl_identify!(3, A, B, C);
 
-// impl of query::Query for various tuples.
-impl_query!(1,A);
-impl_query!(2,A,B);
-impl_query!(3,A,B,C);
+// Implement `query::Query` for tuples of various sizes.
+impl_query!(1, A);
+impl_query!(2, A, B);
+impl_query!(3, A, B, C);
 
 /// Test `Component`.
+#[allow(dead_code)]
 #[derive(Debug)]
 struct CompA(&'static str);
 impl Component for CompA {}
 
 /// Test `Component`.
+#[allow(dead_code)]
 #[derive(Debug)]
 struct CompB(&'static str);
 impl Component for CompB {}
@@ -40,7 +41,7 @@ impl Component for CompB {}
 struct FA;
 impl Filter for FA {
     type Target = CompA; // What you want
-    type FilterAll = (CompA, CompB); // Filter to select entity.
+    type FilterAll = (CompA, CompB); // Filter used to select entities.
     type FilterAny = ();
     type FilterNone = ();
 }
@@ -59,12 +60,12 @@ struct SysA;
 impl System for SysA {
     type Ref = (FA, FB);
     type Mut = FA;
-    
+
     // Your logic.
     fn run(&self, r: <Self::Ref as Query>::Output, m: <Self::Mut as Query>::OutputMut) {
         println!("RunA");
 
-        // We can see inlay type hint thanks to associated types.
+        // Associated types allow the editor to display useful inlay type hints.
         let (a, b) = r;
         for v in a {
             println!("r.0: {:?}", v);
@@ -86,7 +87,7 @@ impl System for SysB {
     fn run(&self, r: <Self::Ref as Query>::Output, m: <Self::Mut as Query>::OutputMut) {
         println!("RunB");
 
-        // We can see inlay type hint thanks to associated types.
+        // Associated types allow the editor to display useful inlay type hints.
         for v in r {
             println!("r: {:?}", v);
         }
@@ -103,11 +104,17 @@ impl System for SysB {
 fn main() {
     // Test storage
     let mut storage = ComponentStorage::new();
-    storage.insert(TypeId::of::<CompA>(), Box::new(vec![CompA("A(0)"), CompA("A(1)")]));
-    storage.insert(TypeId::of::<CompB>(), Box::new(vec![CompB("B(2)"), CompB("B(3)")]));
+    storage.insert(
+        TypeId::of::<CompA>(),
+        Box::new(vec![CompA("A(0)"), CompA("A(1)")]),
+    );
+    storage.insert(
+        TypeId::of::<CompB>(),
+        Box::new(vec![CompB("B(2)"), CompB("B(3)")]),
+    );
 
-    // We can have a list including heterogeneous functions using object safe trait `Invokable`.
-    let list: Vec<Box<dyn Invokable>> = vec![Box::new(SysA), Box::new(SysB)];
+    // An object-safe `Invocable` trait lets us store heterogeneous systems in one list.
+    let list: Vec<Box<dyn Invocable>> = vec![Box::new(SysA), Box::new(SysB)];
 
     // Let's invoke each function.
     for item in list.iter() {

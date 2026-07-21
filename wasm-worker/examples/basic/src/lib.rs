@@ -22,9 +22,9 @@ impl App {
         let child_b = Rc::new(RefCell::new(None));
         let buffer = Rc::new(RefCell::new(vec![0, 0, 0]));
 
-        // Handler for main <- parent.
+        // Handles messages from the parent worker on the main thread.
         {
-            // Not synced, but we can see result anyway.
+            // This is not synchronized, but the result is still visible for this example.
             let buffer = Rc::clone(&buffer);
             parent.register_callback(Closure::new(move |_| {
                 let result = format!("[App] Result is {:?}", buffer.borrow());
@@ -33,20 +33,20 @@ impl App {
         }
 
         // Safety:
-        // - job: Intended unsafe operation
-        // - parent:run_ont_shot_wo_send:
+        // - job: intentionally unsafe operation
+        // - parent.run_one_shot_wo_send:
         //     `Worker::callback` looks like *mut u8, so it's thread-unsafe.
-        //     But it doesn't matter because children are currently None,
-        //     so that we can't access it from main thread.
-        // - child...run_one_shot_wo_send():
-        //      `job` has raw pointer in it, but it's on purpose.
+        //     This is acceptable here because the children are currently `None`, so the
+        //     callback cannot be accessed from the main thread.
+        // - child.run_one_shot_wo_send():
+        //     `job` intentionally contains a raw pointer.
         unsafe {
             // Can we use Arc<Mutex<T>> on wasm? I'm not sure.
             // Use raw pointers instead.
             let ptr = buffer.borrow_mut().as_mut_ptr();
             let job = move |id: usize| {
                 *ptr.add(id) += 10;
-                *ptr.add(2) += 10; // Two workers writes at the same memory on purpose.
+                *ptr.add(2) += 10; // Two workers intentionally write to the same memory.
             };
 
             // Let's make the parent spawn two children and give them jobs.
@@ -59,7 +59,7 @@ impl App {
                 *child_a.borrow_mut() = Some(a);
                 *child_b.borrow_mut() = Some(b);
 
-                // Runs job infinitely.
+                // Runs the job indefinitely.
                 let child_a = Rc::clone(&child_a);
                 let child_b = Rc::clone(&child_b);
                 let timer: Closure<dyn FnMut()> = Closure::new(move || {
@@ -68,7 +68,7 @@ impl App {
                 });
                 set_interval_with_callback(timer.as_ref().unchecked_ref(), 1);
 
-                // Leak, but it's only once.
+                // This leaks once for the lifetime of the application.
                 timer.forget();
             });
         };

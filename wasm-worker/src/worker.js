@@ -4,30 +4,30 @@ onmessage = async ev => {
   if (typeof ev.data === 'object' && Reflect.has(ev.data, 'module')) {
     const { module, memory, import_url, init_method, id } = ev.data;
 
-    // Imports wasm glue module.
+    // Imports the WASM glue module.
     const wasm_glue = await import(new URL(import_url));
 
     // Initializes wasm with the same module and memory.
     // We use shared memory here.
-    // To do that, we inserted '--target web' in our build command.
+    // The build command uses `--target web` to enable this.
     const init = wasm_glue[init_method];
     if (init === undefined) {
       throw new Error('not found "' + init_method + '" from ' + import_url);
     }
     const wasm = await init(module, memory);
 
-    // Consumes stacked events.
+    // Processes queued events.
     while (eventBuf.length > 0) {
       let ev = eventBuf.shift();
       wasm.runWorker(ev.data, id);
     }
 
-    // Run
+    // Processes subsequent events immediately.
     onmessage = ev => {
       wasm.runWorker(ev.data, id);
     }
   } else {
-    // Holds events before we initialize wasm.
+    // Queues events until WASM has been initialized.
     eventBuf.push(ev);
   }
 }

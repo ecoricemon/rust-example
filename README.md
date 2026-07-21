@@ -1,53 +1,59 @@
-# rust-patterns
-Rust patterns
+# Rust Patterns
 
-## Trait impl detect
+Examples of useful Rust patterns.
+
+## Detecting Trait Implementations
 
 [Source code](impl-detect/src/main.rs)
 
-Detects whether T implements some traits
+Detects whether `T` implements certain traits.
 
-When to use
-- Want to know if a type implements some traits at run-time.
+When to use:
 
-## Self referential type
+- You want to know at runtime whether a type implements certain traits.
+
+## Self-Referential Types
 
 [Source code](self-referential/README.md)
 
-A workaround for self referential types
+A workaround for self-referential types.
 
-When to use
-- If you need to deal with something like `&'a Type<'a>`.
+When to use:
 
-## Generic trait object
+- You need to work with a type such as `&'a Type<'a>`.
+
+## Generic Trait Objects
 
 [Source code](generic-trait-object/src/main.rs)
 
-Trait object from trait with generic methods
+Creating a trait object from a trait with generic methods.
 
-When to use
-- Want to make a trait obejct from a trait having some generic methods.
-- Generic methods require 'static lifetime such as `foo<T: 'static>()`.
+When to use:
+
+- You want to create a trait object from a trait that has generic methods.
+- The generic methods require a `'static` lifetime, as in `foo<T: 'static>()`.
 
 ## Heterogeneous functions in a list
 
 [Source code](different-signature-fn-list/src/main.rs)
 
-When to use
-- When you want to manager functions that have different signatures from each other.
-- You need to call them in your code.
+When to use:
+
+- You want to manage functions with different signatures in a single collection.
+- You need to call those functions from your code.
 
 ## ECS: System and Query
 
 [Source code](ecs-system-query/src/main.rs)
 
-When to use
-- When you want to see how to implement ECS in terms of system and query.
+When to use:
 
+- You want to see how to implement an ECS using systems and queries.
 
-## WASM web worker with Webpack
+## WASM Web Workers with Vite
 
 [Source code](wasm-worker/src/lib.rs)
 
-When to use
-- When you want to use web worker and bundle your JS and wasm with Webpack.
+When to use:
+
+- You want to use Web Workers and bundle your JavaScript and WASM with Vite.

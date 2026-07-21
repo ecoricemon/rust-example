@@ -1,8 +1,8 @@
 use once_cell::sync::OnceCell;
 use wasm_bindgen::prelude::*;
 
-/// Clients can modify init function of wasm glue JS file before they call [`Worker::spawn`].
-/// If you don't set this value, [`WBG_INIT_DEFAULT`] will be set as default value.
+/// Clients can change the initialization function from the WASM glue JavaScript before calling
+/// [`Worker::spawn`]. If this value is not set, [`WBG_INIT_DEFAULT`] is used.
 ///
 /// # Example
 ///
@@ -25,9 +25,8 @@ pub struct Worker {
 }
 
 impl Worker {
-    /// Spawns a web worker from current thread with the given `name` and `id`.
-    /// You can see `name` in browser's dev tool.
-    /// And you can use `id` in your job.
+    /// Spawns a Web Worker from the current thread with the given `name` and `id`.
+    /// The `name` appears in the browser's developer tools, and the job can use the `id`.
     pub fn spawn(name: &str, id: usize) -> Result<Self, JsValue> {
         // Creates a new worker.
         let handle = create_worker(name)?;
@@ -65,18 +64,18 @@ impl Worker {
     }
 
     /// Requests to run `f` only once.
-    /// `f` should be sendable, it means `f` can't have raw pointer or Rc inside it.
+    /// `f` must be sendable, so it cannot contain raw pointers or `Rc` values.
     pub fn run_one_shot(&self, f: impl FnOnce(usize) + Send) -> Result<(), JsValue> {
         // Safety: `Send` is bounded by the signature.
         unsafe { self.run_one_shot_wo_send(f) }
     }
 
-    /// You can send `f` without `Send` trait.
-    /// But this function is not thread-safe.
+    /// Sends `f` without requiring the `Send` trait.
+    /// This function is not thread-safe.
     ///
     /// # Safety
     ///
-    /// `f` can access the same memory simultaneously, so that race can occur.
+    /// `f` may access the same memory concurrently, which can cause a data race.
     #[inline]
     pub unsafe fn run_one_shot_wo_send(&self, f: impl FnOnce(usize)) -> Result<(), JsValue> {
         // Packs `f` with Box.
@@ -93,7 +92,7 @@ impl Worker {
 }
 
 impl Drop for Worker {
-    /// Terminates web worker *immediately*.
+    /// Terminates the Web Worker *immediately*.
     fn drop(&mut self) {
         self.handle.terminate();
         log!("Worker({}) was terminated", &self.name);
@@ -113,7 +112,7 @@ pub unsafe fn run_worker(job_ptr: *mut Job, worker_id: usize) {
     notify_parent();
 }
 
-/// Post JS `undefined` to the parent thread which spawned current thread.
+/// Posts JavaScript `undefined` to the parent thread that spawned the current thread.
 /// See https://developer.mozilla.org/en-US/docs/Web/API/Worker/postMessage
 pub fn notify_parent() {
     let global = js_sys::global().unchecked_into::<web_sys::DedicatedWorkerGlobalScope>();
@@ -124,18 +123,18 @@ pub fn notify_parent() {
 }
 
 pub struct Job<'a> {
-    /// A function worker will do.
-    /// Use `Worker::run_one_shot()` to send `f` to other threads.
-    /// You can use `Worker::run_one_shot_wo_send()` if you need unlimited access.
-    /// Note that Rust doesn't know we're sending this to other threads,
-    /// So that we can omit `Send` bound here even if it's unsafe.
+    /// A function to be executed by a worker.
+    /// Use `Worker::run_one_shot()` to send `f` to another thread.
+    /// Use `Worker::run_one_shot_wo_send()` if unrestricted access is required.
+    /// Rust does not know that this is being sent to another thread, so the `Send`
+    /// bound can be omitted here even though doing so is unsafe.
     f: Box<dyn 'a + FnOnce(usize)>,
 }
 
-// Some bundlers could warn about circular dependency caused by worker
+// Some bundlers may warn about a circular dependency caused by the worker,
 // such as "Rust wasm - (bind) -> worker.js -> (import) -> wasm".
-// We can avoid it by removing JS file although it requires other types of settings to bundler.
-// See bundler's configuration for more information.
+// This can be avoided by removing the JavaScript file, although doing so requires additional
+// bundler configuration. See the bundler's documentation for more information.
 fn create_worker(name: &str) -> Result<web_sys::Worker, JsValue> {
     web_sys::Worker::new_with_options(
         &script_url(),
@@ -159,14 +158,13 @@ fn script_url() -> String {
 
 #[wasm_bindgen]
 extern "C" {
-    /// URL of wasm glue JS file.
+    /// URL of the WASM glue JavaScript file.
     //
-    // We need this URL of wasm glue JS file in order to import it dynamically in workers.
-    // So that workers can share the same wasm module and memory.
+    // Workers need this URL to import the WASM glue JavaScript dynamically and share the
+    // same WASM module and memory.
     // But note that bundler may evaluate "import.meta.url" statically during bundling,
-    // which is not what we want, we need to evaluate it at runtime.
-    // Therefore, you need to configure your bundler not to do it.
-    // (e.g. Webpack does it basically, But Vite doesn't do it)
+    // but we need it to be evaluated at runtime. Configure the bundler accordingly.
+    // (For example, Webpack evaluates it statically by default, whereas Vite does not.)
     #[wasm_bindgen(js_namespace = ["import", "meta"], js_name = url)]
     static IMPORT_META_URL: String;
 }

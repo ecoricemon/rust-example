@@ -2,13 +2,14 @@ use super::query::Query;
 use super::ComponentStorage;
 use std::any::TypeId;
 
-pub trait Invokable {
-    fn invoke(&self, storage: &mut ComponentStorage); // Depends on DataPool for object safety.
+#[allow(dead_code)]
+pub trait Invocable {
+    fn invoke(&self, storage: &mut ComponentStorage); // Uses a concrete type for object safety.
     fn reads(&self) -> Vec<TypeId>; // For parallel execution later.
     fn writes(&self) -> Vec<TypeId>; // For parallel execution later.
 }
 
-impl<T: System> Invokable for T {
+impl<T: System> Invocable for T {
     #[inline]
     fn invoke(&self, storage: &mut ComponentStorage) {
         self.run(

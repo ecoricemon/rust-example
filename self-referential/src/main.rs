@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::{mem, sync::Mutex};
 
 struct Wrapper<'this>(SelfReferential<'this>);
 
@@ -9,10 +9,12 @@ impl<'this> Wrapper<'this> {
 
     fn with_inner<'a, F, R>(&'a self, f: F) -> R
     where
-        F: FnOnce(&'this SelfReferential<'this>) -> R
+        F: FnOnce(&'this SelfReferential<'this>) -> R,
     {
-        // Changes lifetime: &'a SelfReferential<'this> -> &'this SelfReferential<'this>
-        let value = unsafe { std::mem::transmute(&self.0) };
+        // Changes the lifetime: &'a SelfReferential<'this> -> &'this SelfReferential<'this>
+        let value = unsafe {
+            mem::transmute::<&'a SelfReferential<'this>, &'this SelfReferential<'this>>(&self.0)
+        };
         f(value)
     }
 }
@@ -30,13 +32,13 @@ impl<'this> SelfReferential<'this> {
         }
     }
 
-    /// `self` should be borrowed as `'this` because we're going to put it in `Option<&'this str>`
+    /// `self` must be borrowed for `'this` because its data will be stored in `Option<&'this str>`.
     fn borrow(&'this self) {
         let mut refs = self.refs.lock().unwrap();
         refs.push(&*self.data);
     }
 
-    /// Inserts str with `this` lifetime. Any lifetimes longer than `this` are acceptable.
+    /// Inserts a string slice with the `'this` lifetime. Any longer lifetime is also acceptable.
     fn insert(&'this self, text: &'this str) {
         let mut refs = self.refs.lock().unwrap();
         refs.push(text);
@@ -59,10 +61,10 @@ fn test_scope() {
             wrapper.with_inner(|self_ref| {
                 let scope_4 = String::from("scope 4");
 
-                self_ref.borrow();             // Stores &'wrapper
-                self_ref.insert("static");     // Stores &'static
-                self_ref.insert(&*scope_1);    // Stores &'scope_1
-                self_ref.insert(&*scope_2);    // Stores &'scope_2
+                self_ref.borrow(); // Stores &'wrapper
+                self_ref.insert("static"); // Stores &'static
+                self_ref.insert(&scope_1); // Stores &'scope_1
+                self_ref.insert(&scope_2); // Stores &'scope_2
                 // self_ref.insert(&*scope_3); // 'scope_3 < 'wrapper => Compile error
                 // self_ref.insert(&*scope_4); // 'scope_4 < 'wrapper => Compile error
             });
@@ -80,8 +82,8 @@ fn returning<'ret>() -> Wrapper<'ret> {
     let wrapper = Wrapper::new();
 
     wrapper.with_inner(|self_ref| {
-        self_ref.insert("static");   // Stores &'static
-        // self_ref.insert(&*local); // any local variables < `ret => Compile error
+        self_ref.insert("static"); // Stores &'static
+        // self_ref.insert(&*local); // A local variable's lifetime is shorter than `'ret` => compile error
     });
 
     wrapper.with_inner(|self_ref| {

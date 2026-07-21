@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Make npm clean itself
+# Clean each Cargo project.
 for dir in *; do
     if [ -d "$dir" ]; then
         echo "=== Cleaning $dir... ==="
@@ -11,4 +11,3 @@ for dir in *; do
     fi
 done
 echo "=== Done. ==="
-

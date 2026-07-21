@@ -1,15 +1,15 @@
-use super::util::{downcast_slice, downcast_mut_slice};
+use super::util::{downcast_mut_slice, downcast_slice};
 use super::{Component, Store};
+use std::ptr::NonNull;
 use std::slice::{Iter, IterMut};
 use std::{any::TypeId, marker::PhantomData};
-use std::ptr::NonNull;
 
-/// A filter to select slices of `Component`.
-/// Users should fill this form of filter.
-/// `Target` is what `Component` you want. You will receive slices of this `Target`.
+/// A filter for selecting slices of `Component`s.
+/// Users define filters in this form.
+/// `Target` is the desired `Component` type. Queries return slices of this type.
 /// `FilterAll` is a tuple of `Component`s to choose entities that have all these `Component`s.
 /// `FilterAny` is a tuple of `Component`s to choose entities that have any of these `Component`s.
-/// `FilterNone` is a tuple of `Component`s not to choose entities that have any of these `Component`s.
+/// `FilterNone` is a tuple of `Component`s used to exclude entities that have any of them.
 pub trait Filter: 'static {
     type Target: Component;
     type FilterAll: Identify;
@@ -55,6 +55,7 @@ pub trait Identify {
     fn as_slice(ids: &Self::Output) -> &[TypeId];
 }
 
+#[allow(dead_code)]
 pub trait Query<'a> {
     type Output;
     type OutputMut;
@@ -73,10 +74,9 @@ pub struct QueryIter<'a, T> {
 
 impl<'a, T> QueryIter<'a, T> {
     /// # Safety
-    /// 
-    /// Borrow check breaks here.
-    /// Caller should guarantee that `v` is invariant during its usage.
-    /// Plus, generic parameter `T` should match with the original type of the `v`.
+    ///
+    /// The borrow checker is bypassed here. The caller must guarantee that `v` remains
+    /// unchanged while in use and that generic parameter `T` matches its original type.
     pub unsafe fn new(v: &Vec<NonNull<[()]>>) -> Self {
         Self {
             iter: (*(v as *const Vec<NonNull<[()]>>)).iter(),
@@ -89,12 +89,10 @@ impl<'a, T: 'a> Iterator for QueryIter<'a, T> {
     type Item = &'a [T];
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter
-            .next()
-            .map(|ptr| 
-                // Safety: Downcasting will be guaranteed by the caller(See comment at the constructor).
-                unsafe { downcast_slice(ptr.as_ptr()) }
-            )
+        self.iter.next().map(|ptr| {
+            // Safety: The caller guarantees that the downcast is valid (see the constructor).
+            unsafe { downcast_slice(ptr.as_ptr()) }
+        })
     }
 }
 

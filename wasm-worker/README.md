@@ -1,28 +1,28 @@
-# Example of Web Worker + WASM + Vite
+# Web Workers + WASM + Vite Example
 
 ## Explanation
 
-If you're trying to use Web Worker in your Rust and you want to bundle all of your
-JS and wasm, this example may be able to help you.
-This shows how to spawn web workers and give them jobs especially on shared memory.
-All workers shares the same wasm memory, so that they can read/write same memory location simultaneously.
+This example shows how to use Web Workers from Rust while bundling all JavaScript and WASM assets.
+It demonstrates how to spawn workers and assign jobs that operate on shared memory. All workers
+share the same WASM memory, so they can read and write the same memory locations concurrently.
 
 ## Prerequisites
 
 ### Rust nightly toolchain
-- This example is based on rust toolchain nightly-2024-06-20, which is the latest now.
-- You can adapt different version, but it might work differently.
-- You can install nightly toolchain using rustup.
+
+- This example uses the `nightly-2024-06-20` Rust toolchain.
+- You can adapt it to another version, but the behavior may differ.
+- Install the nightly toolchain with `rustup`:
   ```sh
   rustup install nightly-2024-06-20
   ```
-- But you'll see an error like below when you're trying to build,
+- When you build the project, you may see an error like this:
   ```sh
   error: "/your/home/.rustup/toolchains/nightly-2024-06-20-???/lib/rustlib/src/rust/Cargo.lock" does not exist, unable to build with the standard library,
   try:
     rustup component add rust-src --toolchain nightly-2024-06-20-???
   ```
-- Nice advice. Let's follow the instruction. Notice that the target triple(represented by ???) will differ from host machine to machine.
+- Follow the suggestion in the error message. The target triple (represented by `???`) varies by host machine.
 
 ## References
 

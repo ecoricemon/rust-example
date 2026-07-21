@@ -9,26 +9,24 @@ export default defineConfig({
         app: 'static/index.html',
       },
       output: {
-        // Worker will import wasm glue JS file to initialize wasm.
-        // But the worker can't access any other resources such as document.
-        // So we need to split the wasm glue from any other chunks.
+        // The worker imports the WASM glue JavaScript to initialize WASM, but it cannot
+        // access resources such as `document`. Keep the WASM glue in a separate chunk.
         manualChunks: {
           'wasm-index': ['pkg_mt/wasm-index']
         },
-        // To preserve '__wbg_init' in wasm glue JS file.
-        // Rollup or something is switching 'default export' to 'export' of '__wbg_init',
-        // So we need to keep the name of it.
+        // Preserve `__wbg_init` in the WASM glue JavaScript. Rollup may convert the
+        // default export into a named `__wbg_init` export, so its name must remain stable.
         minifyInternalExports: false,
       }
     },
     // Relative to 'root'.
     outDir: '../dist',
   },
-  // For getting out of index.html from dist/static directory.
+  // Prevents `index.html` from being emitted under `dist/static`.
   root: 'static',
   plugins: [
-    // Makes us be able to use top level await for wasm.
-    // Otherwise, we can restrict build.target to 'es2022', which allows top level await.
+    // Enables top-level `await` for WASM. Alternatively, `build.target` can be set to
+    // `es2022`, which also supports top-level `await`.
     wasm(),
     topLevelAwait(),
   ],
@@ -37,7 +35,7 @@ export default defineConfig({
   },
   preview: {
     port: 8080,
-    // In multi-threaded environment, we need to share wasm memory.
+    // A multithreaded environment requires shared WASM memory.
     // These headers are required to share the memory.
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',

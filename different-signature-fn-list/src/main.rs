@@ -1,25 +1,33 @@
-use std::any::{TypeId, Any};
+use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
-// These Data are custom structs to distinguash the same inner types.
+// These custom data structures distinguish values with the same underlying type.
+#[allow(dead_code)]
 #[derive(Debug)]
 struct DataA(char);
+#[allow(dead_code)]
 #[derive(Debug)]
 struct DataB(char);
 
 // Concrete data storage.
 // Assume that this is a storage that keeps your heterogeneous data.
-// It's super simple, but for practical usage, we should make this more flexible and safe.
+// It is deliberately simple; a production version should be more flexible and safe.
 struct DataStorage {
     data: HashMap<TypeId, Box<dyn Any>>,
 }
 
 impl DataStorage {
-    // Makes sample data.
+    // Creates sample data.
     fn new() -> Self {
         let mut data: HashMap<TypeId, Box<dyn Any>> = HashMap::new();
-        data.insert(TypeId::of::<DataA>(), Box::new(vec![DataA('a'), DataA('b')]));
-        data.insert(TypeId::of::<DataB>(), Box::new(vec![DataB('c'), DataB('d')]));
+        data.insert(
+            TypeId::of::<DataA>(),
+            Box::new(vec![DataA('a'), DataA('b')]),
+        );
+        data.insert(
+            TypeId::of::<DataB>(),
+            Box::new(vec![DataB('c'), DataB('d')]),
+        );
         Self { data }
     }
 }
@@ -38,7 +46,7 @@ impl Store for DataStorage {
             .unwrap()
             .as_slice()
     }
-    
+
     fn as_mut_slice<T: 'static>(&mut self) -> &mut [T] {
         self.data
             .get_mut(&TypeId::of::<T>())
@@ -49,16 +57,16 @@ impl Store for DataStorage {
     }
 }
 
-trait Invokable {
-    fn invoke(&mut self, data: &mut DataStorage); // Depends on DataPool for object safety.
+trait Invocable {
+    fn invoke(&mut self, data: &mut DataStorage); // Uses a concrete type for object safety.
 }
 
-impl<'a, T: Runnable<'a>> Invokable for T {
+impl<'a, T: Runnable<'a>> Invocable for T {
     #[inline]
     fn invoke(&mut self, data: &mut DataStorage) {
         self.run(
             <T::Ref as Visit>::visit(data),
-            <T::Mut as VisitMut>::visit_mut(data)
+            <T::Mut as VisitMut>::visit_mut(data),
         );
     }
 }
@@ -74,15 +82,14 @@ trait VisitMut {
 trait Runnable<'a> {
     type Ref: Visit;
     type Mut: VisitMut;
-    
+
     fn run(&mut self, r: Self::Ref, m: Self::Mut);
 }
 
-// Please implement `Visit` and `VisitMut` for more tuples. (It's ordinary in Rust for now)
-// And be careful!
-// Compiler infers that lifetime of `data` is different with the `Self` because we casted to raw pointers.
-// This helps we to use `data` after calling this function so that we can call `visit_mut`.
-// But it's dangerous, so that we need to check borrow rule manually.
+// Implement `Visit` and `VisitMut` for additional tuple sizes as needed.
+// Be careful: because we cast to raw pointers, the compiler infers that the lifetime of
+// `data` is independent of `Self`. This lets us use `data` again after this function
+// returns so that we can call `visit_mut`, but it requires manual borrow checking.
 impl<A: 'static, B: 'static> Visit for (&[A], &[B]) {
     #[inline]
     fn visit(data: &impl Store) -> Self {
@@ -112,7 +119,7 @@ impl<'a> Runnable<'a> for RunA {
     type Ref = (&'a [DataA], &'a [DataB]);
     type Mut = (&'a mut [DataA], &'a mut [DataB]);
 
-    // Data race occurs here on purpose.
+    // Aliasing occurs here intentionally for demonstration purposes.
     fn run(&mut self, r: Self::Ref, m: Self::Mut) {
         println!("RunA");
         println!("r: {:?}", r);
@@ -125,7 +132,7 @@ impl<'a> Runnable<'a> for RunB {
     type Ref = (&'a [DataA], &'a [DataB]);
     type Mut = (&'a mut [DataA], &'a mut [DataB]);
 
-    // Data race occurs here on purpose.
+    // Aliasing occurs here intentionally for demonstration purposes.
     fn run(&mut self, r: Self::Ref, m: Self::Mut) {
         println!("RunB");
         println!("r: {:?}", r);
@@ -135,9 +142,9 @@ impl<'a> Runnable<'a> for RunB {
 
 fn main() {
     let mut data = DataStorage::new();
-    
-    // We can have a list including heterogeneous functions using object safe trait `Invokable`.
-    let list: Vec<Box<dyn Invokable>> = vec![Box::new(RunA), Box::new(RunB)];
+
+    // An object-safe `Invocable` trait lets us store heterogeneous functions in one list.
+    let list: Vec<Box<dyn Invocable>> = vec![Box::new(RunA), Box::new(RunB)];
 
     // Let's invoke each function.
     for mut item in list {

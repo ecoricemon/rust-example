@@ -1,11 +1,11 @@
-# A Woraround for Self-Referential Type in Rust
+# A Workaround for Self-Referential Types in Rust
 
-This example demonstrates how to work around borrow error against self-referential types in Rust.
+This example demonstrates how to work around borrow-checker errors involving self-referential types in Rust.
 
 ## Motivation
 
-Sometimes, although it's not the best option, we need to deal with types like `&'a T<'a>` for some
-reason. See an example below.
+Sometimes, even when it is not the best option, we need to work with types such as `&'a T<'a>`.
+Consider the following example.
 
 ```rust
 struct SelfReferential<'this> {
@@ -21,7 +21,7 @@ impl<'this> SelfReferential<'this> {
         }
     }
 
-    /// `self` should be borrowed as `'this` because we're going to put it in `Vec<&'this str>`
+    /// `self` must be borrowed for `'this` because its data will be stored in `Vec<&'this str>`.
     fn borrow(&'this mut self) {
         self.refs.push(&*self.data);
     }
@@ -29,17 +29,17 @@ impl<'this> SelfReferential<'this> {
 
 let mut self_ref = SelfReferential::new();
 
-// Borrow lasts at the end of lifetime of `SelfReferential` itself
+// The borrow lasts until the end of the `SelfReferential` value's lifetime.
 self_ref.borrow(); 
 
-// We cannot borrow it again because of mutable borrow above
+// We cannot borrow it again because of the mutable borrow above.
 // self_ref.borrow();
 ```
 
 ## Workaround
 
-Actually, the naive approach in the motivation section is useless. We should be able to borrow it
-multiple times, so let's introduce interior mutability to our code.
+The naive approach in the motivation section is not useful because we need to borrow the value
+multiple times. We can introduce interior mutability to make that possible.
 
 ```rust ignore
 use std::sync::Mutex;
@@ -67,13 +67,14 @@ fn make_self_referential<'a>() -> SelfReferential<'a> {
     let self_ref = SelfReferential::new();
     self_ref.borrow();
     self_ref.borrow();
-    // `self_ref` is still being borrowed. We cannot return borrowed variable.
+    // `self_ref` is still borrowed, so we cannot return it.
     // self_ref
 }
 ```
 
-We can call `borrow()` multiple times now, but we cannot return the `SelfReferential`. Ever lasting
-borrow is the problem. Can we stop the borrowing before `SelfReferential` goes out of scope?
+We can now call `borrow()` multiple times, but we still cannot return the `SelfReferential`.
+The problem is that the borrow never ends. Can we limit the borrow so that it ends before the
+`SelfReferential` goes out of scope?
 
 ```rust
 use std::sync::Mutex;
@@ -89,7 +90,7 @@ impl<'this> Wrapper<'this> {
     where
         F: FnOnce(&'this SelfReferential<'this>) -> R
     {
-        // Changes lifetime: &'a SelfReferential<'this> -> &'this SelfReferential<'this>
+        // Changes the lifetime: &'a SelfReferential<'this> -> &'this SelfReferential<'this>
         let value = unsafe { std::mem::transmute(&self.0) };
         f(value)
     }
@@ -125,4 +126,4 @@ fn make_self_referential<'a>() -> Wrapper<'a> {
 ```
 
 By introducing a wrapper and limiting borrowing within a closure, we can now return the
-`SelfReference`.  You can see more example in [`main`](src/main.rs).
+`SelfReferential`. See [`main`](src/main.rs) for a more complete example.
